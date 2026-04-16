@@ -45,12 +45,32 @@ Trigger (webhook) ──► Incident ──► Investigators (parallel)
 
 Pre-alpha. Interfaces stable. One stub investigator and a stdout sink so the wiring is exercised end-to-end. Real investigators land next.
 
+## Running
+
+```
+go run ./cmd/rca-server                 # listens on :8080, or $LOLO_ADDR
+```
+
+Endpoints:
+
+- `GET  /healthz`
+- `POST /webhook/alertmanager` — accepts an Alertmanager webhook payload
+
+Example:
+
+```
+curl -X POST http://localhost:8080/webhook/alertmanager \
+  -H "Content-Type: application/json" \
+  -d '{"commonLabels":{"alertname":"HighErrorRate","service":"payments"},
+       "commonAnnotations":{"summary":"Error rate 5%"},
+       "alerts":[{"startsAt":"2026-04-16T17:00:00Z","status":"firing"}]}'
+```
+
 ## Development
 
 ```
 go build ./...
 go test ./...
-go run ./cmd/rca-server
 ```
 
 ## License

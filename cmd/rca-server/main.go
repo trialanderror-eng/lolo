@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"log"
+	"net/http"
+	"os"
 	"time"
 
 	"github.com/trialanderror-eng/lolo/internal/hypothesis"
@@ -11,31 +14,89 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigator"
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
+	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
 )
 
 func main() {
-	id := flag.String("id", "demo-incident", "incident id for the dry-run")
+	addr := flag.String("addr", envOr("LOLO_ADDR", ":8080"), "listen address")
 	flag.Parse()
 
-	inc := incident.Incident{
-		ID:          *id,
-		TriggeredAt: time.Now(),
-		Window:      30 * time.Minute,
-		Signal:      incident.Signal{Source: "manual", Summary: "dry-run"},
+	engine := &engine{
+		investigators: []investigator.Investigator{stub.New()},
+		ranker:        hypothesis.DefaultRanker{},
+		sinks:         []Sink{stdout.New()},
 	}
 
-	invs := []investigator.Investigator{stub.New()}
-	results := investigator.RunAll(context.Background(), invs, inc)
-	ev := investigator.Flatten(results)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("/webhook/alertmanager", engine.handleAlertmanager)
 
-	hs := []hypothesis.Hypothesis{{
-		Summary:   "no ranker configured yet",
-		Score:     0,
-		Evidence:  ev,
-		Reasoning: "wiring placeholder — plug in a real Ranker to synthesize hypotheses",
-	}}
-
-	if err := stdout.New().Emit(context.Background(), inc, hs); err != nil {
+	srv := &http.Server{
+		Addr:              *addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	log.Printf("lolo listening on %s", *addr)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+// Sink is the server-local view of output.Sink. The canonical interface lives
+// next to each implementation; this mirror exists so main can hold a []Sink.
+type Sink interface {
+	Emit(ctx context.Context, inc incident.Incident, hs []hypothesis.Hypothesis) error
+}
+
+type engine struct {
+	investigators []investigator.Investigator
+	ranker        hypothesis.Ranker
+	sinks         []Sink
+}
+
+func (e *engine) handleAlertmanager(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	defer r.Body.Close()
+
+	inc, err := alertmanager.Parse(r.Body)
+	if err != nil {
+		http.Error(w, "bad payload: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	hs, err := e.investigate(r.Context(), inc)
+	if err != nil {
+		http.Error(w, "investigation failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, s := range e.sinks {
+		if err := s.Emit(r.Context(), inc, hs); err != nil {
+			log.Printf("sink emit: %v", err)
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"incident_id":  inc.ID,
+		"hypothesis_n": len(hs),
+	})
+}
+
+func (e *engine) investigate(ctx context.Context, inc incident.Incident) ([]hypothesis.Hypothesis, error) {
+	results := investigator.RunAll(ctx, e.investigators, inc)
+	for _, r := range results {
+		if r.Err != nil {
+			log.Printf("investigator %s: %v", r.Investigator, r.Err)
+		}
+	}
+	ev := investigator.Flatten(results)
+	return e.ranker.Rank(ctx, inc, ev)
+}
+
+func envOr(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
 }
