@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lolo.fullname" . }}
+  labels:
+    {{- include "lolo.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "lolo.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "lolo.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "lolo.serviceAccountName" . }}
+      containers:
+        - name: lolo
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: LOLO_ADDR
+              value: ":8080"
+            {{- with .Values.config.github.repos }}
+            - name: LOLO_GITHUB_REPOS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.config.k8s.namespaces }}
+            - name: LOLO_K8S_NAMESPACES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            - name: LOLO_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.keys.webhookToken }}
+            - name: LOLO_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.keys.githubToken }}
+                  optional: true
+            - name: LOLO_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.keys.slackWebhookURL }}
+                  optional: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10

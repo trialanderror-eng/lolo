@@ -1,0 +1,30 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "lolo.fullname" . }}-reader
+  labels:
+    {{- include "lolo.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "lolo.fullname" . }}-reader
+  labels:
+    {{- include "lolo.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "lolo.fullname" . }}-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "lolo.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

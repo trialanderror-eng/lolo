@@ -1,0 +1,57 @@
+image:
+  repository: ghcr.io/trialanderror-eng/lolo
+  tag: ""              # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Non-secret runtime config.
+config:
+  github:
+    repos: []          # owner/name list, comma-joined into LOLO_GITHUB_REPOS
+  k8s:
+    namespaces: []     # checked when an incident has no scope.namespaces
+
+# Reference an existing Secret with the credentials. Create it yourself, e.g.:
+#   kubectl create secret generic lolo \
+#     --from-literal=webhook-token=$(openssl rand -hex 32) \
+#     --from-literal=github-token=ghp_xxx \
+#     --from-literal=slack-webhook-url=https://hooks.slack.com/services/...
+secrets:
+  existingSecret: lolo
+  keys:
+    webhookToken:    webhook-token       # required for /webhook/* auth
+    githubToken:     github-token        # optional — enables github.deploys
+    slackWebhookURL: slack-webhook-url   # optional — enables slack sink
+
+rbac:
+  # Creates ClusterRole + ClusterRoleBinding so the kubernetes investigator
+  # can list pods and events cluster-wide. Set to false if you wire your own.
+  create: true
+
+serviceAccount:
+  create: true
+  name: ""             # defaults to release name
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: lolo.example.com
+      paths:
+        - path: /webhook
+          pathType: Prefix
+  tls: []

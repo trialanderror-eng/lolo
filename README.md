@@ -78,6 +78,37 @@ curl -X POST http://localhost:8080/webhook/alertmanager \
        "alerts":[{"startsAt":"2026-04-16T17:00:00Z","status":"firing"}]}'
 ```
 
+## Deploying
+
+### Container image
+
+```
+docker build -t ghcr.io/trialanderror-eng/lolo:0.1.0 .
+docker push    ghcr.io/trialanderror-eng/lolo:0.1.0
+```
+
+The image is distroless-static, runs as `nonroot`, ~13MB.
+
+### Helm
+
+The chart in `deploy/helm/` ships a Deployment, Service, ServiceAccount, and a ClusterRole + ClusterRoleBinding so the `kubernetes` investigator can read pods + events cluster-wide.
+
+Credentials are read from a Secret you create yourself; the chart never stores them:
+
+```
+kubectl create secret generic lolo \
+  --from-literal=webhook-token=$(openssl rand -hex 32) \
+  --from-literal=github-token=ghp_xxx \
+  --from-literal=slack-webhook-url=https://hooks.slack.com/services/...
+
+helm install lolo deploy/helm \
+  --set image.tag=0.1.0 \
+  --set config.k8s.namespaces='{prod,infra}' \
+  --set config.github.repos='{acme/api,acme/web}'
+```
+
+For least-privilege, set `rbac.create=false` and bind a per-namespace `RoleBinding` against the same ClusterRole yourself.
+
 ## Development
 
 ```
