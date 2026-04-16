@@ -14,6 +14,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/incident"
 	"github.com/trialanderror-eng/lolo/internal/investigator"
 	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
+	k8sinv "github.com/trialanderror-eng/lolo/internal/investigators/kubernetes"
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
@@ -27,6 +28,7 @@ func main() {
 	if token := os.Getenv("LOLO_GITHUB_TOKEN"); token != "" {
 		invs = append(invs, deploys.New(token, splitCSV(os.Getenv("LOLO_GITHUB_REPOS"))))
 	}
+	invs = append(invs, k8sinv.New(splitCSV(os.Getenv("LOLO_K8S_NAMESPACES"))))
 
 	engine := &engine{
 		investigators: invs,
