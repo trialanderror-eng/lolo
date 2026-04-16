@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"log"
@@ -46,9 +47,14 @@ func main() {
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("/webhook/alertmanager", engine.handleAlertmanager)
 
+	token := os.Getenv("LOLO_WEBHOOK_TOKEN")
+	if token == "" {
+		log.Printf("WARNING: LOLO_WEBHOOK_TOKEN unset — /webhook/* endpoints accept unauthenticated requests (dev mode)")
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           mux,
+		Handler:           authMiddleware(token, mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("lolo listening on %s", *addr)
@@ -114,6 +120,27 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// authMiddleware enforces a shared-secret bearer token on /webhook/* paths.
+// Other paths (notably /healthz) pass through unconditionally. When token is
+// empty the middleware is a pass-through — main logs a loud warning at startup.
+func authMiddleware(token string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/webhook/") || token == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		const prefix = "Bearer "
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, prefix) ||
+			subtle.ConstantTimeCompare([]byte(h[len(prefix):]), []byte(token)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="lolo"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func splitCSV(s string) []string {

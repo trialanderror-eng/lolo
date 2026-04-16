@@ -56,6 +56,7 @@ Environment:
 | Var                  | Purpose                                                            |
 |----------------------|--------------------------------------------------------------------|
 | `LOLO_ADDR`          | listen address (default `:8080`)                                   |
+| `LOLO_WEBHOOK_TOKEN` | shared-secret bearer token enforced on `/webhook/*`. If unset, the server logs a warning at startup and accepts unauthenticated requests (dev only). |
 | `LOLO_GITHUB_TOKEN`  | GitHub PAT — enables the `github.deploys` investigator             |
 | `LOLO_GITHUB_REPOS`  | comma-separated `owner/name` list checked when the incident scope has none |
 | `LOLO_K8S_NAMESPACES`| comma-separated namespaces checked when the incident scope has none. The `kubernetes` investigator uses in-cluster auth, falling back to `KUBECONFIG`/`~/.kube/config`. |
@@ -71,6 +72,7 @@ Example:
 ```
 curl -X POST http://localhost:8080/webhook/alertmanager \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $LOLO_WEBHOOK_TOKEN" \
   -d '{"commonLabels":{"alertname":"HighErrorRate","service":"payments"},
        "commonAnnotations":{"summary":"Error rate 5%"},
        "alerts":[{"startsAt":"2026-04-16T17:00:00Z","status":"firing"}]}'
