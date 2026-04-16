@@ -16,6 +16,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
 	k8sinv "github.com/trialanderror-eng/lolo/internal/investigators/kubernetes"
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
+	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
 )
@@ -30,10 +31,15 @@ func main() {
 	}
 	invs = append(invs, k8sinv.New(splitCSV(os.Getenv("LOLO_K8S_NAMESPACES"))))
 
+	sinks := []Sink{stdout.New()}
+	if url := os.Getenv("LOLO_SLACK_WEBHOOK_URL"); url != "" {
+		sinks = append(sinks, slack.New(url))
+	}
+
 	engine := &engine{
 		investigators: invs,
 		ranker:        hypothesis.DefaultRanker{},
-		sinks:         []Sink{stdout.New()},
+		sinks:         sinks,
 	}
 
 	mux := http.NewServeMux()

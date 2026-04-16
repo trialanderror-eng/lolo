@@ -59,6 +59,7 @@ Environment:
 | `LOLO_GITHUB_TOKEN`  | GitHub PAT — enables the `github.deploys` investigator             |
 | `LOLO_GITHUB_REPOS`  | comma-separated `owner/name` list checked when the incident scope has none |
 | `LOLO_K8S_NAMESPACES`| comma-separated namespaces checked when the incident scope has none. The `kubernetes` investigator uses in-cluster auth, falling back to `KUBECONFIG`/`~/.kube/config`. |
+| `LOLO_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL. When set, every RCA report is posted there in addition to stdout. |
 
 Endpoints:
 
