@@ -7,11 +7,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/trialanderror-eng/lolo/internal/hypothesis"
 	"github.com/trialanderror-eng/lolo/internal/incident"
 	"github.com/trialanderror-eng/lolo/internal/investigator"
+	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
@@ -21,8 +23,13 @@ func main() {
 	addr := flag.String("addr", envOr("LOLO_ADDR", ":8080"), "listen address")
 	flag.Parse()
 
+	invs := []investigator.Investigator{stub.New()}
+	if token := os.Getenv("LOLO_GITHUB_TOKEN"); token != "" {
+		invs = append(invs, deploys.New(token, splitCSV(os.Getenv("LOLO_GITHUB_REPOS"))))
+	}
+
 	engine := &engine{
-		investigators: []investigator.Investigator{stub.New()},
+		investigators: invs,
 		ranker:        hypothesis.DefaultRanker{},
 		sinks:         []Sink{stdout.New()},
 	}
@@ -99,4 +106,18 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

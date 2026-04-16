@@ -51,6 +51,14 @@ Pre-alpha. Interfaces stable. One stub investigator and a stdout sink so the wir
 go run ./cmd/rca-server                 # listens on :8080, or $LOLO_ADDR
 ```
 
+Environment:
+
+| Var                  | Purpose                                                            |
+|----------------------|--------------------------------------------------------------------|
+| `LOLO_ADDR`          | listen address (default `:8080`)                                   |
+| `LOLO_GITHUB_TOKEN`  | GitHub PAT — enables the `github.deploys` investigator             |
+| `LOLO_GITHUB_REPOS`  | comma-separated `owner/name` list checked when the incident scope has none |
+
 Endpoints:
 
 - `GET  /healthz`
