@@ -34,6 +34,10 @@ spec:
             - name: LOLO_K8S_NAMESPACES
               value: {{ join "," . | quote }}
             {{- end }}
+            {{- with .Values.config.prometheus.url }}
+            - name: LOLO_PROMETHEUS_URL
+              value: {{ . | quote }}
+            {{- end }}
             - name: LOLO_WEBHOOK_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -50,6 +54,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
                   key: {{ .Values.secrets.keys.slackWebhookURL }}
+                  optional: true
+            - name: LOLO_PROMETHEUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.keys.prometheusToken }}
                   optional: true
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

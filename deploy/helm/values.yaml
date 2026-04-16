@@ -23,6 +23,8 @@ config:
     repos: []          # owner/name list, comma-joined into LOLO_GITHUB_REPOS
   k8s:
     namespaces: []     # checked when an incident has no scope.namespaces
+  prometheus:
+    url: ""            # e.g. http://prometheus.monitoring.svc:9090; required to enable the investigator
 
 # Reference an existing Secret with the credentials. Create it yourself, e.g.:
 #   kubectl create secret generic lolo \
@@ -35,6 +37,7 @@ secrets:
     webhookToken:    webhook-token       # required for /webhook/* auth
     githubToken:     github-token        # optional — enables github.deploys
     slackWebhookURL: slack-webhook-url   # optional — enables slack sink
+    prometheusToken: prometheus-token    # optional — bearer for prometheus
 
 rbac:
   # Creates ClusterRole + ClusterRoleBinding so the kubernetes investigator

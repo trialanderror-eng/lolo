@@ -16,6 +16,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigator"
 	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
 	k8sinv "github.com/trialanderror-eng/lolo/internal/investigators/kubernetes"
+	"github.com/trialanderror-eng/lolo/internal/investigators/prometheus"
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
@@ -31,6 +32,9 @@ func main() {
 		invs = append(invs, deploys.New(token, splitCSV(os.Getenv("LOLO_GITHUB_REPOS"))))
 	}
 	invs = append(invs, k8sinv.New(splitCSV(os.Getenv("LOLO_K8S_NAMESPACES"))))
+	if promURL := os.Getenv("LOLO_PROMETHEUS_URL"); promURL != "" {
+		invs = append(invs, prometheus.New(promURL, os.Getenv("LOLO_PROMETHEUS_TOKEN")))
+	}
 
 	sinks := []Sink{stdout.New()}
 	if url := os.Getenv("LOLO_SLACK_WEBHOOK_URL"); url != "" {

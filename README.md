@@ -61,6 +61,8 @@ Environment:
 | `LOLO_GITHUB_REPOS`  | comma-separated `owner/name` list checked when the incident scope has none |
 | `LOLO_K8S_NAMESPACES`| comma-separated namespaces checked when the incident scope has none. The `kubernetes` investigator uses in-cluster auth, falling back to `KUBECONFIG`/`~/.kube/config`. |
 | `LOLO_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL. When set, every RCA report is posted there in addition to stdout. |
+| `LOLO_PROMETHEUS_URL` | Prometheus API base URL (e.g. `http://prometheus:9090`). Required to enable the `prometheus` investigator. The host is intentionally NOT taken from the alert payload — that would be an SSRF vector. |
+| `LOLO_PROMETHEUS_TOKEN` | Optional bearer token for Prometheus auth. |
 
 Endpoints:
 
