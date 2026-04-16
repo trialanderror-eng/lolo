@@ -43,7 +43,7 @@ func main() {
 
 	engine := &engine{
 		investigators: invs,
-		ranker:        hypothesis.DefaultRanker{},
+		ranker:        hypothesis.CorrelatingRanker{TopN: 10},
 		sinks:         sinks,
 	}
 
