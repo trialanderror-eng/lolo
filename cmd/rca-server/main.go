@@ -16,6 +16,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigator"
 	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
 	k8sinv "github.com/trialanderror-eng/lolo/internal/investigators/kubernetes"
+	meminv "github.com/trialanderror-eng/lolo/internal/investigators/memory"
 	"github.com/trialanderror-eng/lolo/internal/investigators/prometheus"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
@@ -29,7 +30,10 @@ func main() {
 	addr := flag.String("addr", envOr("LOLO_ADDR", ":8080"), "listen address")
 	flag.Parse()
 
+	store := memory.New(memory.DefaultCapacity)
+
 	var invs []investigator.Investigator
+	invs = append(invs, meminv.New(store, os.Getenv("LOLO_PUBLIC_URL")))
 	if token := os.Getenv("LOLO_GITHUB_TOKEN"); token != "" {
 		invs = append(invs, deploys.New(token, splitCSV(os.Getenv("LOLO_GITHUB_REPOS"))))
 	}
@@ -42,8 +46,6 @@ func main() {
 	if url := os.Getenv("LOLO_SLACK_WEBHOOK_URL"); url != "" {
 		sinks = append(sinks, slack.New(url))
 	}
-
-	store := memory.New(memory.DefaultCapacity)
 
 	engine := &engine{
 		investigators: invs,

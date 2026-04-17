@@ -64,6 +64,7 @@ Environment:
 | `LOLO_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL. When set, every RCA report is posted there in addition to stdout. |
 | `LOLO_PROMETHEUS_URL` | Prometheus API base URL (e.g. `http://prometheus:9090`). Required to enable the `prometheus` investigator. The host is intentionally NOT taken from the alert payload — that would be an SSRF vector. |
 | `LOLO_PROMETHEUS_TOKEN` | Optional bearer token for Prometheus auth. |
+| `LOLO_PUBLIC_URL` | External URL lolo is reachable at (e.g. `https://lolo.internal`). Used to make `memory` investigator Links absolute so they resolve from Slack/Jira. Relative when unset — dashboard still works. |
 
 Endpoints:
 
