@@ -13,7 +13,31 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("/webhook/alertmanager", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	})
+	mux.HandleFunc("/investigate", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
 	return mux
+}
+
+func TestAuthMiddleware_investigateUsesBearerToken(t *testing.T) {
+	h := authMiddleware("s3cret", "", newMux())
+
+	// Missing bearer on /investigate → 401
+	req := httptest.NewRequest(http.MethodPost, "/investigate", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated /investigate = %d, want 401", w.Code)
+	}
+
+	// Correct bearer → 202 (through to handler)
+	req = httptest.NewRequest(http.MethodPost, "/investigate", strings.NewReader(`{}`))
+	req.Header.Set("Authorization", "Bearer s3cret")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Errorf("good bearer /investigate = %d, want 202", w.Code)
+	}
 }
 
 func TestAuthMiddleware_healthAlwaysOpen(t *testing.T) {

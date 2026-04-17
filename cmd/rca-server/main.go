@@ -26,6 +26,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/storage/memory"
 	sqlitestore "github.com/trialanderror-eng/lolo/internal/storage/sqlite"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
+	"github.com/trialanderror-eng/lolo/internal/trigger/manual"
 )
 
 func main() {
@@ -62,6 +63,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("/webhook/alertmanager", engine.handleAlertmanager)
+	mux.HandleFunc("/investigate", engine.handleManual)
 	dashboard.Register(mux, store)
 
 	webhookToken := os.Getenv("LOLO_WEBHOOK_TOKEN")
@@ -103,12 +105,33 @@ func (e *engine) handleAlertmanager(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-
 	inc, err := alertmanager.Parse(r.Body)
 	if err != nil {
 		http.Error(w, "bad payload: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	e.runAndRespond(w, r, inc)
+}
+
+func (e *engine) handleManual(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	defer r.Body.Close()
+	inc, err := manual.Parse(r.Body)
+	if err != nil {
+		http.Error(w, "bad payload: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	e.runAndRespond(w, r, inc)
+}
+
+// runAndRespond is the shared post-parse path for every trigger: run
+// investigators → rank → persist → emit sinks → reply. Keeps the
+// handlers thin and means every new trigger gets the same storage +
+// sink guarantees for free.
+func (e *engine) runAndRespond(w http.ResponseWriter, r *http.Request, inc incident.Incident) {
 	started := time.Now()
 	hs, err := e.investigate(r.Context(), inc)
 	if err != nil {
@@ -184,7 +207,7 @@ func authMiddleware(webhookToken, dashboardToken string, next http.Handler) http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		switch {
-		case strings.HasPrefix(path, "/webhook/"):
+		case strings.HasPrefix(path, "/webhook/") || path == "/investigate":
 			if webhookToken == "" {
 				break
 			}

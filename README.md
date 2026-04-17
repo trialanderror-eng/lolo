@@ -73,6 +73,7 @@ Endpoints:
 
 - `GET  /healthz`
 - `POST /webhook/alertmanager` — accepts an Alertmanager webhook payload
+- `POST /investigate` — ad-hoc investigation (no alert required). Body: `{"summary": "...", "window": "2h", "scope": {"services":[...], "namespaces":[...], "repos":[...]}}`. Same bearer auth as `/webhook/*`.
 - `GET  /` — dashboard index (HTML)
 - `GET  /investigations/{id}` — single investigation (HTML)
 - `GET  /api/investigations` — JSON list
