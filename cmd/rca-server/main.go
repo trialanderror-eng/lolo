@@ -17,7 +17,6 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
 	k8sinv "github.com/trialanderror-eng/lolo/internal/investigators/kubernetes"
 	"github.com/trialanderror-eng/lolo/internal/investigators/prometheus"
-	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
 	"github.com/trialanderror-eng/lolo/internal/server/dashboard"
@@ -30,7 +29,7 @@ func main() {
 	addr := flag.String("addr", envOr("LOLO_ADDR", ":8080"), "listen address")
 	flag.Parse()
 
-	invs := []investigator.Investigator{stub.New()}
+	var invs []investigator.Investigator
 	if token := os.Getenv("LOLO_GITHUB_TOKEN"); token != "" {
 		invs = append(invs, deploys.New(token, splitCSV(os.Getenv("LOLO_GITHUB_REPOS"))))
 	}
