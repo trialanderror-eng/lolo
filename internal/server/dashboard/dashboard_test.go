@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -150,4 +151,93 @@ func TestAPIGet_returnsSingleInvestigation(t *testing.T) {
 	if inv.Incident.ID != "WebDown-1" {
 		t.Errorf("got %+v, want WebDown-1", inv.Incident.ID)
 	}
+}
+
+func TestDetail_unresolvedShowsForm(t *testing.T) {
+	mux := newDashboardMux(mkStore(t))
+	req := httptest.NewRequest(http.MethodGet, "/investigations/WebDown-1", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, `action="/investigations/WebDown-1/resolve"`) {
+		t.Error("detail missing resolve form action")
+	}
+	if !strings.Contains(body, "What fixed it?") {
+		t.Error("detail missing form label")
+	}
+}
+
+func TestResolve_happyPath(t *testing.T) {
+	store := mkStore(t)
+	mux := newDashboardMux(store)
+
+	form := url.Values{}
+	form.Set("notes", "rolled back payments to sha abc123")
+	req := httptest.NewRequest(http.MethodPost, "/investigations/WebDown-1/resolve",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("alice", "pw")
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", w.Code)
+	}
+	if got := w.Header().Get("Location"); got != "/investigations/WebDown-1" {
+		t.Errorf("redirect = %q, want /investigations/WebDown-1", got)
+	}
+
+	// Now GET the detail — should show the resolution block, not the form.
+	req = httptest.NewRequest(http.MethodGet, "/investigations/WebDown-1", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, "rolled back payments to sha abc123") {
+		t.Error("resolution notes not rendered on reload")
+	}
+	if !strings.Contains(body, "by <span class=\"text-emerald-200\">alice</span>") {
+		t.Errorf("ResolvedBy not rendered: %s", body[strings.Index(body, "Resolved"):min(len(body), strings.Index(body, "Resolved")+300)])
+	}
+	if strings.Contains(body, "What fixed it?") {
+		t.Error("resolve form still shown after resolving")
+	}
+
+	// And the index should have a "resolved" chip.
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if !strings.Contains(w.Body.String(), ">resolved<") {
+		t.Error("index missing resolved chip")
+	}
+}
+
+func TestResolve_emptyNotesIs400(t *testing.T) {
+	mux := newDashboardMux(mkStore(t))
+	req := httptest.NewRequest(http.MethodPost, "/investigations/WebDown-1/resolve",
+		strings.NewReader("notes="))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestResolve_unknownIDIs404(t *testing.T) {
+	mux := newDashboardMux(mkStore(t))
+	req := httptest.NewRequest(http.MethodPost, "/investigations/nope/resolve",
+		strings.NewReader("notes=x"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

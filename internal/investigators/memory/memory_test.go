@@ -227,6 +227,45 @@ func TestSimilarityScore_tableDriven(t *testing.T) {
 	}
 }
 
+func TestInvestigate_surfacesResolutionWhenPastIsResolved(t *testing.T) {
+	now := time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC)
+	past := mkInv("past", "broken pod test",
+		incident.Scope{Namespaces: []string{"sre-learning"}},
+		now.Add(-2*time.Hour),
+		"namespace `sre-learning` — 2 signals from kubernetes")
+	past.Resolution = storage.Resolution{
+		ResolvedAt: now.Add(-90 * time.Minute),
+		Notes:      "rolled back payments to sha abc123",
+		ResolvedBy: "alice",
+	}
+
+	inv := New(seed(t, past), "")
+	inv.now = func() time.Time { return now }
+
+	cur := incident.Incident{
+		ID:     "now",
+		Scope:  incident.Scope{Namespaces: []string{"sre-learning"}},
+		Signal: incident.Signal{Summary: "broken pod test"},
+	}
+	ev, err := inv.Investigate(context.Background(), cur)
+	if err != nil || len(ev) != 1 {
+		t.Fatalf("Investigate: len=%d err=%v", len(ev), err)
+	}
+	e := ev[0]
+	if !strings.Contains(e.Summary, "PRIOR FIX: rolled back payments to sha abc123") {
+		t.Errorf("Summary should surface resolution text, got %q", e.Summary)
+	}
+	if strings.Contains(e.Summary, "prior top hypothesis") {
+		t.Errorf("Summary should prefer resolution over top hypothesis: %q", e.Summary)
+	}
+	if got := e.Data["prior_fix"]; got != "rolled back payments to sha abc123" {
+		t.Errorf("Data[prior_fix] = %v", got)
+	}
+	if got := e.Data["prior_fix_by"]; got != "alice" {
+		t.Errorf("Data[prior_fix_by] = %v", got)
+	}
+}
+
 func TestInvestigate_nilStorageIsSafe(t *testing.T) {
 	inv := &Investigator{} // store nil
 	ev, err := inv.Investigate(context.Background(), incident.Incident{})

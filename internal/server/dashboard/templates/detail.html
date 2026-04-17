@@ -11,6 +11,29 @@
   <div><span class="text-slate-500">duration </span>{{.Investigation.Duration}}</div>
 </div>
 
+{{if .Investigation.Resolved}}
+<div class="mt-4 rounded border border-emerald-800/60 bg-emerald-950/40 p-4">
+  <div class="text-emerald-300 text-sm mb-1">
+    Resolved {{.Investigation.Resolution.ResolvedAt.Format "2006-01-02 15:04:05 MST"}}
+    {{with .Investigation.Resolution.ResolvedBy}} &middot; by <span class="text-emerald-200">{{.}}</span>{{end}}
+  </div>
+  <div class="text-slate-100 whitespace-pre-wrap">{{.Investigation.Resolution.Notes}}</div>
+</div>
+{{else}}
+<form action="/investigations/{{.Investigation.Incident.ID}}/resolve" method="POST"
+      class="mt-4 rounded border border-slate-800 bg-slate-900 p-4">
+  <label for="notes" class="block text-slate-400 text-sm mb-2">What fixed it?</label>
+  <textarea name="notes" id="notes" rows="3" required
+            placeholder="e.g. rolled back deploy of payments to sha abc123"
+            class="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-200 text-sm font-mono"></textarea>
+  <button type="submit"
+          class="mt-2 px-3 py-1 text-sm bg-emerald-800 hover:bg-emerald-700 text-emerald-100 rounded">
+    Mark resolved
+  </button>
+  <span class="ml-3 text-xs text-slate-500">Future similar incidents will surface this note.</span>
+</form>
+{{end}}
+
 <h3 class="text-lg text-slate-300 mt-8 mb-3">Hypotheses ({{len .Investigation.Hypotheses}})</h3>
 {{if not .Investigation.Hypotheses}}
 <div class="text-slate-500 italic py-6">No hypotheses produced &mdash; all investigators returned empty.</div>

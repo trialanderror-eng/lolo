@@ -86,10 +86,15 @@ func (i *Investigator) Investigate(ctx context.Context, inc incident.Incident) (
 	out := make([]evidence.Evidence, 0, len(hits))
 	for _, h := range hits {
 		ago := i.now().Sub(h.inv.StartedAt).Round(time.Minute)
-		top := topHypothesisSummary(h.inv)
 		summary := fmt.Sprintf("similar incident %s ago (matched %s): %s",
 			ago, strings.Join(h.match, ", "), h.inv.Incident.Signal.Summary)
-		if top != "" {
+
+		// Prefer the captured resolution over the prior top hypothesis:
+		// "here's what actually fixed it" is more actionable than "here's
+		// what we thought was happening." Both get included when present.
+		if h.inv.Resolved() {
+			summary += " — PRIOR FIX: " + h.inv.Resolution.Notes
+		} else if top := topHypothesisSummary(h.inv); top != "" {
 			summary += " — prior top hypothesis: " + top
 		}
 
@@ -97,6 +102,13 @@ func (i *Investigator) Investigate(ctx context.Context, inc incident.Incident) (
 			"past_incident_id": h.inv.Incident.ID,
 			"matched_on":       h.match,
 			"similarity":       h.score,
+		}
+		if h.inv.Resolved() {
+			data["prior_fix"] = h.inv.Resolution.Notes
+			data["prior_fix_at"] = h.inv.Resolution.ResolvedAt
+			if h.inv.Resolution.ResolvedBy != "" {
+				data["prior_fix_by"] = h.inv.Resolution.ResolvedBy
+			}
 		}
 		// Stamp any matched scope key so CorrelatingRanker buckets this
 		// evidence alongside co-scoped live evidence (k8s, prometheus).

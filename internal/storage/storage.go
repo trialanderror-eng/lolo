@@ -16,7 +16,22 @@ type Investigation struct {
 	Hypotheses []hypothesis.Hypothesis `json:"hypotheses"`
 	StartedAt  time.Time               `json:"started_at"`
 	Duration   time.Duration           `json:"duration"`
+	Resolution Resolution              `json:"resolution,omitempty"`
 }
+
+// Resolution is an operator-captured note about what actually fixed the
+// incident. A nil/zero Resolution means the investigation isn't marked
+// resolved yet. The memory investigator surfaces the Notes field on
+// future similar incidents — this is how lolo accumulates
+// organization-specific fix knowledge without any external training.
+type Resolution struct {
+	ResolvedAt time.Time `json:"resolved_at,omitempty"`
+	Notes      string    `json:"notes,omitempty"`
+	ResolvedBy string    `json:"resolved_by,omitempty"`
+}
+
+// Resolved reports whether this investigation has a captured resolution.
+func (i Investigation) Resolved() bool { return !i.Resolution.ResolvedAt.IsZero() }
 
 // Storage is the read/write contract. Implementations may bound size,
 // expire entries, or persist to disk — that's their concern.

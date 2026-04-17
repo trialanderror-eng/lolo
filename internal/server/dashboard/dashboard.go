@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/trialanderror-eng/lolo/internal/storage"
@@ -29,6 +30,7 @@ func Register(mux *http.ServeMux, store storage.Storage) {
 	s := &server{store: store, indexTmpl: idx, detailTmpl: det}
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.HandleFunc("GET /investigations/{id}", s.detail)
+	mux.HandleFunc("POST /investigations/{id}/resolve", s.resolve)
 	mux.HandleFunc("GET /api/investigations", s.apiList)
 	mux.HandleFunc("GET /api/investigations/{id}", s.apiGet)
 }
@@ -99,6 +101,42 @@ func (s *server) detail(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (s *server) resolve(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "parse form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	notes := strings.TrimSpace(r.PostForm.Get("notes"))
+	if notes == "" {
+		http.Error(w, "notes is required", http.StatusBadRequest)
+		return
+	}
+
+	inv, ok, err := s.store.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	user, _, _ := r.BasicAuth()
+	inv.Resolution = storage.Resolution{
+		ResolvedAt: time.Now().UTC(),
+		Notes:      notes,
+		ResolvedBy: user,
+	}
+	if err := s.store.Save(r.Context(), inv); err != nil {
+		http.Error(w, "save: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// POST/Redirect/GET — reloading the detail page shouldn't re-submit.
+	http.Redirect(w, r, "/investigations/"+id, http.StatusSeeOther)
 }
 
 func (s *server) apiList(w http.ResponseWriter, r *http.Request) {
