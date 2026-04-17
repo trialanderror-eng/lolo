@@ -96,7 +96,7 @@ func TestLLMRanker_promptIncludesIncidentAndEvidence(t *testing.T) {
 			Score:   0.9,
 			Evidence: []evidence.Evidence{{
 				Source: "kubernetes", Kind: "pod_unhealthy",
-				At: time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+				At:      time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
 				Summary: "prod/api phase=Pending",
 			}},
 		}}},
