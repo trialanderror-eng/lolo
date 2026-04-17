@@ -20,6 +20,8 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
+	"github.com/trialanderror-eng/lolo/internal/storage"
+	"github.com/trialanderror-eng/lolo/internal/storage/memory"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
 )
 
@@ -41,10 +43,13 @@ func main() {
 		sinks = append(sinks, slack.New(url))
 	}
 
+	store := memory.New(memory.DefaultCapacity)
+
 	engine := &engine{
 		investigators: invs,
 		ranker:        hypothesis.CorrelatingRanker{TopN: 10},
 		sinks:         sinks,
+		storage:       store,
 	}
 
 	mux := http.NewServeMux()
@@ -77,6 +82,7 @@ type engine struct {
 	investigators []investigator.Investigator
 	ranker        hypothesis.Ranker
 	sinks         []Sink
+	storage       storage.Storage
 }
 
 func (e *engine) handleAlertmanager(w http.ResponseWriter, r *http.Request) {
@@ -91,10 +97,21 @@ func (e *engine) handleAlertmanager(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad payload: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	started := time.Now()
 	hs, err := e.investigate(r.Context(), inc)
 	if err != nil {
 		http.Error(w, "investigation failed: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if e.storage != nil {
+		if err := e.storage.Save(r.Context(), storage.Investigation{
+			Incident:   inc,
+			Hypotheses: hs,
+			StartedAt:  started,
+			Duration:   time.Since(started),
+		}); err != nil {
+			log.Printf("storage save: %v", err)
+		}
 	}
 	for _, s := range e.sinks {
 		if err := s.Emit(r.Context(), inc, hs); err != nil {
