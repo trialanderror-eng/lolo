@@ -20,6 +20,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigators/stub"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
+	"github.com/trialanderror-eng/lolo/internal/server/dashboard"
 	"github.com/trialanderror-eng/lolo/internal/storage"
 	"github.com/trialanderror-eng/lolo/internal/storage/memory"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
@@ -55,15 +56,20 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("/webhook/alertmanager", engine.handleAlertmanager)
+	dashboard.Register(mux, store)
 
-	token := os.Getenv("LOLO_WEBHOOK_TOKEN")
-	if token == "" {
+	webhookToken := os.Getenv("LOLO_WEBHOOK_TOKEN")
+	if webhookToken == "" {
 		log.Printf("WARNING: LOLO_WEBHOOK_TOKEN unset — /webhook/* endpoints accept unauthenticated requests (dev mode)")
+	}
+	dashboardToken := os.Getenv("LOLO_DASHBOARD_TOKEN")
+	if dashboardToken == "" {
+		log.Printf("WARNING: LOLO_DASHBOARD_TOKEN unset — dashboard and /api/* accept unauthenticated requests (dev mode)")
 	}
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           authMiddleware(token, mux),
+		Handler:           authMiddleware(webhookToken, dashboardToken, mux),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	log.Printf("lolo listening on %s", *addr)
@@ -143,25 +149,59 @@ func envOr(k, def string) string {
 	return def
 }
 
-// authMiddleware enforces a shared-secret bearer token on /webhook/* paths.
-// Other paths (notably /healthz) pass through unconditionally. When token is
-// empty the middleware is a pass-through — main logs a loud warning at startup.
-func authMiddleware(token string, next http.Handler) http.Handler {
+// authMiddleware enforces:
+//   - bearer-token auth on /webhook/* (LOLO_WEBHOOK_TOKEN)
+//   - basic-auth on /, /investigations/*, /api/* (LOLO_DASHBOARD_TOKEN; password
+//     only — the username field is ignored)
+//
+// /healthz is always open. When a token is empty the corresponding gate is a
+// pass-through; main logs a loud warning at startup so this isn't silent.
+func authMiddleware(webhookToken, dashboardToken string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/webhook/") || token == "" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		const prefix = "Bearer "
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, prefix) ||
-			subtle.ConstantTimeCompare([]byte(h[len(prefix):]), []byte(token)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="lolo"`)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
+		path := r.URL.Path
+		switch {
+		case strings.HasPrefix(path, "/webhook/"):
+			if webhookToken == "" {
+				break
+			}
+			if !checkBearer(r, webhookToken) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="lolo"`)
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+		case isDashboardPath(path):
+			if dashboardToken == "" {
+				break
+			}
+			if !checkBasic(r, dashboardToken) {
+				w.Header().Set("WWW-Authenticate", `Basic realm="lolo"`)
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isDashboardPath(p string) bool {
+	return p == "/" || strings.HasPrefix(p, "/investigations/") || strings.HasPrefix(p, "/api/")
+}
+
+func checkBearer(r *http.Request, token string) bool {
+	const prefix = "Bearer "
+	h := r.Header.Get("Authorization")
+	if !strings.HasPrefix(h, prefix) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(h[len(prefix):]), []byte(token)) == 1
+}
+
+func checkBasic(r *http.Request, token string) bool {
+	_, pass, ok := r.BasicAuth()
+	if !ok {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(pass), []byte(token)) == 1
 }
 
 func splitCSV(s string) []string {

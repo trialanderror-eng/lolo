@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}lolo{{end}}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }</style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+<div class="max-w-6xl mx-auto p-6">
+<header class="flex items-baseline justify-between mb-6 border-b border-slate-800 pb-4">
+  <a href="/" class="text-xl font-semibold text-white">lolo</a>
+  <div class="text-xs text-slate-500">RCA-only &middot; {{.Now.Format "2006-01-02 15:04:05 MST"}}</div>
+</header>
+{{block "content" .}}{{end}}
+</div>
+</body>
+</html>

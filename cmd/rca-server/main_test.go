@@ -18,7 +18,7 @@ func newMux() *http.ServeMux {
 
 func TestAuthMiddleware_healthAlwaysOpen(t *testing.T) {
 	for _, token := range []string{"", "secret"} {
-		h := authMiddleware(token, newMux())
+		h := authMiddleware(token, token, newMux())
 		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
@@ -28,8 +28,61 @@ func TestAuthMiddleware_healthAlwaysOpen(t *testing.T) {
 	}
 }
 
+func TestAuthMiddleware_dashboardBasicAuth(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("/api/investigations", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	t.Run("dev mode allows unauth", func(t *testing.T) {
+		h := authMiddleware("", "", mux)
+		for _, p := range []string{"/", "/api/investigations"} {
+			req := httptest.NewRequest(http.MethodGet, p, nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("%s = %d, want 200 (dev mode)", p, w.Code)
+			}
+		}
+	})
+
+	t.Run("missing creds → 401 with Basic challenge", func(t *testing.T) {
+		h := authMiddleware("", "dashpw", mux)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got %d, want 401", w.Code)
+		}
+		if !strings.Contains(w.Header().Get("WWW-Authenticate"), "Basic") {
+			t.Errorf("missing Basic challenge: %q", w.Header().Get("WWW-Authenticate"))
+		}
+	})
+
+	t.Run("correct password accepts (any username)", func(t *testing.T) {
+		h := authMiddleware("", "dashpw", mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/investigations", nil)
+		req.SetBasicAuth("anyuser", "dashpw")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("got %d, want 200", w.Code)
+		}
+	})
+
+	t.Run("wrong password → 401", func(t *testing.T) {
+		h := authMiddleware("", "dashpw", mux)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.SetBasicAuth("u", "wrong")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("got %d, want 401", w.Code)
+		}
+	})
+}
+
 func TestAuthMiddleware_emptyTokenAllowsWebhook(t *testing.T) {
-	h := authMiddleware("", newMux())
+	h := authMiddleware("", "", newMux())
 	req := httptest.NewRequest(http.MethodPost, "/webhook/alertmanager", strings.NewReader(`{}`))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -39,7 +92,7 @@ func TestAuthMiddleware_emptyTokenAllowsWebhook(t *testing.T) {
 }
 
 func TestAuthMiddleware_correctBearerAccepts(t *testing.T) {
-	h := authMiddleware("s3cret", newMux())
+	h := authMiddleware("s3cret", "", newMux())
 	req := httptest.NewRequest(http.MethodPost, "/webhook/alertmanager", strings.NewReader(`{}`))
 	req.Header.Set("Authorization", "Bearer s3cret")
 	w := httptest.NewRecorder()
@@ -60,7 +113,7 @@ func TestAuthMiddleware_rejectsBadAndMissingTokens(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			h := authMiddleware("s3cret", newMux())
+			h := authMiddleware("s3cret", "", newMux())
 			req := httptest.NewRequest(http.MethodPost, "/webhook/alertmanager", strings.NewReader(`{}`))
 			if c.header != "" {
 				req.Header.Set("Authorization", c.header)

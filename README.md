@@ -57,6 +57,7 @@ Environment:
 |----------------------|--------------------------------------------------------------------|
 | `LOLO_ADDR`          | listen address (default `:8080`)                                   |
 | `LOLO_WEBHOOK_TOKEN` | shared-secret bearer token enforced on `/webhook/*`. If unset, the server logs a warning at startup and accepts unauthenticated requests (dev only). |
+| `LOLO_DASHBOARD_TOKEN` | password for HTTP basic auth on `/`, `/investigations/*`, `/api/*`. Username is ignored. If unset, dashboard accepts unauthenticated requests (dev only). |
 | `LOLO_GITHUB_TOKEN`  | GitHub PAT — enables the `github.deploys` investigator             |
 | `LOLO_GITHUB_REPOS`  | comma-separated `owner/name` list checked when the incident scope has none |
 | `LOLO_K8S_NAMESPACES`| comma-separated namespaces checked when the incident scope has none. The `kubernetes` investigator uses in-cluster auth, falling back to `KUBECONFIG`/`~/.kube/config`. |
@@ -68,6 +69,10 @@ Endpoints:
 
 - `GET  /healthz`
 - `POST /webhook/alertmanager` — accepts an Alertmanager webhook payload
+- `GET  /` — dashboard index (HTML)
+- `GET  /investigations/{id}` — single investigation (HTML)
+- `GET  /api/investigations` — JSON list
+- `GET  /api/investigations/{id}` — JSON detail
 
 Example:
 

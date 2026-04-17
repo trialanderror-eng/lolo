@@ -1,0 +1,45 @@
+{{define "title"}}{{.Investigation.Incident.ID}} &middot; lolo{{end}}
+{{define "content"}}
+<a href="/" class="text-xs text-slate-500 hover:text-slate-300">&larr; back</a>
+<h2 class="text-xl text-white font-mono mt-2">{{.Investigation.Incident.ID}}</h2>
+<div class="text-sm text-slate-400 mt-1">{{.Investigation.Incident.Signal.Summary}}</div>
+
+<div class="mt-4 grid grid-cols-2 gap-4 text-sm bg-slate-900 border border-slate-800 rounded p-4">
+  <div><span class="text-slate-500">triggered </span>{{.Investigation.Incident.TriggeredAt.Format "2006-01-02 15:04:05 MST"}}</div>
+  <div><span class="text-slate-500">window </span>{{.Investigation.Incident.Window}}</div>
+  <div><span class="text-slate-500">source </span>{{.Investigation.Incident.Signal.Source}}</div>
+  <div><span class="text-slate-500">duration </span>{{.Investigation.Duration}}</div>
+</div>
+
+<h3 class="text-lg text-slate-300 mt-8 mb-3">Hypotheses ({{len .Investigation.Hypotheses}})</h3>
+{{if not .Investigation.Hypotheses}}
+<div class="text-slate-500 italic py-6">No hypotheses produced &mdash; all investigators returned empty.</div>
+{{end}}
+{{range $i, $h := .Investigation.Hypotheses}}
+<div class="mb-4 rounded border border-slate-800 bg-slate-900 p-4">
+  <div class="flex items-baseline gap-3">
+    <span class="text-xs px-2 py-0.5 rounded {{scoreClass $h.Score}}">score {{printf "%.2f" $h.Score}}</span>
+    <span class="text-slate-100 font-medium">{{add $i 1}}. {{$h.Summary}}</span>
+  </div>
+  {{if $h.Reasoning}}<div class="text-sm text-slate-400 mt-2">{{$h.Reasoning}}</div>{{end}}
+  {{if $h.Evidence}}
+  <div class="mt-3 space-y-2 text-xs">
+    {{range $h.Evidence}}
+    <div class="border-l-2 border-slate-700 pl-3 py-1">
+      <div class="flex items-baseline gap-2 text-slate-500">
+        <span>{{.At.Format "15:04:05"}}</span>
+        <span class="text-purple-300">{{.Source}}</span>
+        <span>&middot;</span>
+        <span class="text-slate-300">{{.Kind}}</span>
+        <span>&middot;</span>
+        <span class="text-slate-200">conf {{printf "%.2f" .Confidence}}</span>
+        {{range .Links}}<a href="{{.URL}}" target="_blank" rel="noreferrer" class="ml-1 text-blue-400 hover:underline">[{{.Label}}]</a>{{end}}
+      </div>
+      <div class="text-slate-300 mt-1 break-words">{{.Summary}}</div>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

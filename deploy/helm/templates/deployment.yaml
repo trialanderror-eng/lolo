@@ -43,6 +43,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
                   key: {{ .Values.secrets.keys.webhookToken }}
+            - name: LOLO_DASHBOARD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.keys.dashboardToken }}
             - name: LOLO_GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:

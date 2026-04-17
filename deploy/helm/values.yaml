@@ -35,6 +35,7 @@ secrets:
   existingSecret: lolo
   keys:
     webhookToken:    webhook-token       # required for /webhook/* auth
+    dashboardToken:  dashboard-token     # required for / and /api/* auth
     githubToken:     github-token        # optional — enables github.deploys
     slackWebhookURL: slack-webhook-url   # optional — enables slack sink
     prometheusToken: prometheus-token    # optional — bearer for prometheus
