@@ -57,6 +57,10 @@ spec:
             - name: LOLO_PROMETHEUS_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.config.loki.url }}
+            - name: LOLO_LOKI_URL
+              value: {{ . | quote }}
+            {{- end }}
             - name: LOLO_WEBHOOK_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -84,6 +88,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret }}
                   key: {{ .Values.secrets.keys.prometheusToken }}
+                  optional: true
+            - name: LOLO_LOKI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.keys.lokiToken }}
                   optional: true
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

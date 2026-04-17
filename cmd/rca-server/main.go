@@ -16,6 +16,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigator"
 	"github.com/trialanderror-eng/lolo/internal/investigators/deploys"
 	k8sinv "github.com/trialanderror-eng/lolo/internal/investigators/kubernetes"
+	"github.com/trialanderror-eng/lolo/internal/investigators/logs"
 	meminv "github.com/trialanderror-eng/lolo/internal/investigators/memory"
 	"github.com/trialanderror-eng/lolo/internal/investigators/prometheus"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
@@ -41,6 +42,9 @@ func main() {
 	invs = append(invs, k8sinv.New(splitCSV(os.Getenv("LOLO_K8S_NAMESPACES"))))
 	if promURL := os.Getenv("LOLO_PROMETHEUS_URL"); promURL != "" {
 		invs = append(invs, prometheus.New(promURL, os.Getenv("LOLO_PROMETHEUS_TOKEN")))
+	}
+	if lokiURL := os.Getenv("LOLO_LOKI_URL"); lokiURL != "" {
+		invs = append(invs, logs.New(lokiURL, os.Getenv("LOLO_LOKI_TOKEN")))
 	}
 
 	sinks := []Sink{stdout.New()}

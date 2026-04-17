@@ -64,6 +64,8 @@ Environment:
 | `LOLO_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL. When set, every RCA report is posted there in addition to stdout. |
 | `LOLO_PROMETHEUS_URL` | Prometheus API base URL (e.g. `http://prometheus:9090`). Required to enable the `prometheus` investigator. The host is intentionally NOT taken from the alert payload — that would be an SSRF vector. |
 | `LOLO_PROMETHEUS_TOKEN` | Optional bearer token for Prometheus auth. |
+| `LOLO_LOKI_URL` | Loki API base URL (e.g. `http://loki:3100`). Required to enable the `logs` investigator. Same SSRF defense as Prometheus — host never taken from the alert payload. |
+| `LOLO_LOKI_TOKEN` | Optional bearer token for Loki auth (useful for Grafana Cloud / hosted Loki). |
 | `LOLO_PUBLIC_URL` | External URL lolo is reachable at (e.g. `https://lolo.internal`). Used to make `memory` investigator Links absolute so they resolve from Slack/Jira. Relative when unset — dashboard still works. |
 | `LOLO_STORAGE_PATH` | File path for the SQLite investigation store (e.g. `/data/lolo.db`). When unset, storage is an ephemeral in-memory ring buffer (investigations lost on restart). Required for the `memory` investigator to accumulate knowledge across restarts. |
 

@@ -35,6 +35,8 @@ config:
     namespaces: []     # checked when an incident has no scope.namespaces
   prometheus:
     url: ""            # e.g. http://prometheus.monitoring.svc:9090; required to enable the investigator
+  loki:
+    url: ""            # e.g. http://loki.monitoring.svc:3100; required to enable the `logs` investigator
 
 # Reference an existing Secret with the credentials. Create it yourself, e.g.:
 #   kubectl create secret generic lolo \
@@ -49,6 +51,7 @@ secrets:
     githubToken:     github-token        # optional — enables github.deploys
     slackWebhookURL: slack-webhook-url   # optional — enables slack sink
     prometheusToken: prometheus-token    # optional — bearer for prometheus
+    lokiToken:       loki-token          # optional — bearer for loki
 
 rbac:
   # Creates ClusterRole + ClusterRoleBinding so the kubernetes investigator
