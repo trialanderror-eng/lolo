@@ -23,6 +23,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/server/dashboard"
 	"github.com/trialanderror-eng/lolo/internal/storage"
 	"github.com/trialanderror-eng/lolo/internal/storage/memory"
+	sqlitestore "github.com/trialanderror-eng/lolo/internal/storage/sqlite"
 	"github.com/trialanderror-eng/lolo/internal/trigger/alertmanager"
 )
 
@@ -30,7 +31,7 @@ func main() {
 	addr := flag.String("addr", envOr("LOLO_ADDR", ":8080"), "listen address")
 	flag.Parse()
 
-	store := memory.New(memory.DefaultCapacity)
+	store := openStorage()
 
 	var invs []investigator.Investigator
 	invs = append(invs, meminv.New(store, os.Getenv("LOLO_PUBLIC_URL")))
@@ -148,6 +149,24 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+// openStorage returns the configured Storage backend. With
+// LOLO_STORAGE_PATH set, investigations persist to a SQLite file
+// across restarts (required for the memory investigator's learning
+// pitch). Without it, falls back to the ephemeral ring buffer.
+func openStorage() storage.Storage {
+	path := os.Getenv("LOLO_STORAGE_PATH")
+	if path == "" {
+		log.Printf("storage: using ephemeral in-memory ring (set LOLO_STORAGE_PATH to persist)")
+		return memory.New(memory.DefaultCapacity)
+	}
+	s, err := sqlitestore.New(path)
+	if err != nil {
+		log.Fatalf("storage: sqlite open %q: %v", path, err)
+	}
+	log.Printf("storage: sqlite at %s", path)
+	return s
 }
 
 // authMiddleware enforces:

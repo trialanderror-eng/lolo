@@ -17,6 +17,16 @@ resources:
     cpu: 500m
     memory: 256Mi
 
+# Persistent storage — required for the memory investigator to learn
+# across pod restarts. When disabled, storage falls back to an
+# ephemeral in-memory ring buffer.
+persistence:
+  enabled: true
+  size: 2Gi
+  storageClass: ""    # empty → use cluster default
+  mountPath: /data
+  dbFilename: lolo.db
+
 # Non-secret runtime config.
 config:
   github:
