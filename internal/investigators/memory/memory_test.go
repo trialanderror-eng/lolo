@@ -264,6 +264,9 @@ func TestInvestigate_surfacesResolutionWhenPastIsResolved(t *testing.T) {
 	if got := e.Data["prior_fix_by"]; got != "alice" {
 		t.Errorf("Data[prior_fix_by] = %v", got)
 	}
+	if got, _ := e.Data["prior_fix_at"].(string); !strings.Contains(got, "2026-04-17 16:30 UTC") {
+		t.Errorf("Data[prior_fix_at] = %v, want pre-formatted '2026-04-17 16:30 UTC'", e.Data["prior_fix_at"])
+	}
 }
 
 func TestInvestigate_nilStorageIsSafe(t *testing.T) {

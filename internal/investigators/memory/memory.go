@@ -104,8 +104,13 @@ func (i *Investigator) Investigate(ctx context.Context, inc incident.Incident) (
 			"similarity":       h.score,
 		}
 		if h.inv.Resolved() {
+			// Store pre-formatted strings: evidence.Data survives a JSON
+			// round-trip through SQLite, so storing time.Time here would
+			// surface as a string from storage anyway. Formatting once up
+			// front keeps the template simple and consistent across both
+			// in-process and rehydrated evidence.
 			data["prior_fix"] = h.inv.Resolution.Notes
-			data["prior_fix_at"] = h.inv.Resolution.ResolvedAt
+			data["prior_fix_at"] = h.inv.Resolution.ResolvedAt.UTC().Format("2006-01-02 15:04 MST")
 			if h.inv.Resolution.ResolvedBy != "" {
 				data["prior_fix_by"] = h.inv.Resolution.ResolvedBy
 			}
