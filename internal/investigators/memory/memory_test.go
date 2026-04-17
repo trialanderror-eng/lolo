@@ -81,15 +81,47 @@ func TestInvestigate_findsSimilarByScope(t *testing.T) {
 	if got := e.Links[0].URL; got != "https://lolo.example.com/investigations/Past-1" {
 		t.Errorf("Link URL = %q, want absolute URL with publicURL prefix", got)
 	}
-	// Scope + signal match both → score should be near 1.0
-	if e.Confidence < 0.9 {
-		t.Errorf("Confidence = %v, want >= 0.9 (scope+signal both matched)", e.Confidence)
+	// Scope + signal match both → raw score = 1.0, capped to maxMemoryConfidence
+	// so the memory evidence doesn't outrank live-state investigators.
+	if e.Confidence != maxMemoryConfidence {
+		t.Errorf("Confidence = %v, want %v (capped)", e.Confidence, maxMemoryConfidence)
+	}
+	if sim, _ := e.Data["similarity"].(float64); sim < 0.99 {
+		t.Errorf("Data[similarity] = %v, want ~1.0 (raw score preserved)", sim)
 	}
 	matched, _ := e.Data["matched_on"].([]string)
 	wantMatched := map[string]bool{"namespace": true, "signal": true}
 	for _, m := range matched {
 		if !wantMatched[m] {
 			t.Errorf("matched_on has unexpected %q (want namespace and signal)", m)
+		}
+	}
+
+	// Scope hint for the matched namespace must be stamped so
+	// CorrelatingRanker groups this evidence with other sre-learning evidence.
+	if got := e.Data["namespace"]; got != "sre-learning" {
+		t.Errorf("Data[namespace] = %v, want sre-learning (scope hint for ranker)", got)
+	}
+}
+
+func TestInvestigate_stampsMatchedScopeIntoData(t *testing.T) {
+	now := time.Now()
+	past := mkInv("past", "sig",
+		incident.Scope{Services: []string{"payments"}, Namespaces: []string{"prod"}, Repos: []string{"acme/api"}},
+		now.Add(-1*time.Hour), "")
+	inv := New(seed(t, past), "")
+	cur := incident.Incident{
+		Scope:  incident.Scope{Services: []string{"payments"}, Namespaces: []string{"prod"}, Repos: []string{"acme/api"}},
+		Signal: incident.Signal{Summary: "sig"},
+	}
+	ev, err := inv.Investigate(context.Background(), cur)
+	if err != nil || len(ev) != 1 {
+		t.Fatalf("Investigate: len=%d err=%v", len(ev), err)
+	}
+	want := map[string]string{"service": "payments", "namespace": "prod", "repo": "acme/api"}
+	for k, v := range want {
+		if got := ev[0].Data[k]; got != v {
+			t.Errorf("Data[%s] = %v, want %q", k, got, v)
 		}
 	}
 }

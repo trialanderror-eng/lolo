@@ -20,6 +20,13 @@ const (
 	defaultMinScore = 0.3
 	defaultTopK     = 3
 	lookbackLimit   = 500
+
+	// Memory evidence is context, not diagnosis. Capping its confidence
+	// below the typical live-state investigator ceiling (~0.9) keeps
+	// "we've seen this before" from outranking an active failure in the
+	// ranker's view. The raw similarityScore can still approach 1.0;
+	// that's the true match strength, persisted in Data["similarity"].
+	maxMemoryConfidence = 0.8
 )
 
 type Investigator struct {
@@ -85,17 +92,28 @@ func (i *Investigator) Investigate(ctx context.Context, inc incident.Incident) (
 		if top != "" {
 			summary += " — prior top hypothesis: " + top
 		}
+
+		data := map[string]any{
+			"past_incident_id": h.inv.Incident.ID,
+			"matched_on":       h.match,
+			"similarity":       h.score,
+		}
+		// Stamp any matched scope key so CorrelatingRanker buckets this
+		// evidence alongside co-scoped live evidence (k8s, prometheus).
+		// Without this the ranker sees "no scope" and files it as an
+		// orphan hypothesis, even when past and current incident both
+		// name the same namespace/service/repo/pod.
+		for k, v := range scopeHints(h.inv.Incident, inc) {
+			data[k] = v
+		}
+
 		out = append(out, evidence.Evidence{
 			Source:     "memory",
 			Kind:       "similar_incident",
 			At:         h.inv.StartedAt,
-			Confidence: h.score,
+			Confidence: capConfidence(h.score),
 			Summary:    summary,
-			Data: map[string]any{
-				"past_incident_id": h.inv.Incident.ID,
-				"matched_on":       h.match,
-				"similarity":       h.score,
-			},
+			Data:       data,
 			Links: []evidence.Link{{
 				Label: "past RCA",
 				URL:   i.publicURL + "/investigations/" + h.inv.Incident.ID,
@@ -103,6 +121,40 @@ func (i *Investigator) Investigate(ctx context.Context, inc incident.Incident) (
 		})
 	}
 	return out, nil
+}
+
+func capConfidence(s float64) float64 {
+	if s > maxMemoryConfidence {
+		return maxMemoryConfidence
+	}
+	return s
+}
+
+// scopeHints returns the first overlap per scope field between past and
+// current, shaped so CorrelatingRanker.bucketKey can read it.
+func scopeHints(past, cur incident.Incident) map[string]string {
+	out := map[string]string{}
+	if v := firstOverlap(past.Scope.Services, cur.Scope.Services); v != "" {
+		out["service"] = v
+	}
+	if v := firstOverlap(past.Scope.Namespaces, cur.Scope.Namespaces); v != "" {
+		out["namespace"] = v
+	}
+	if v := firstOverlap(past.Scope.Repos, cur.Scope.Repos); v != "" {
+		out["repo"] = v
+	}
+	return out
+}
+
+func firstOverlap(a, b []string) string {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				return x
+			}
+		}
+	}
+	return ""
 }
 
 // similarityScore mixes scope overlap (jaccard) and signal-summary exact
