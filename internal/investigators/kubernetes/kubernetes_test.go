@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -107,6 +108,47 @@ func TestInvestigate_noNamespacesIsNoOp(t *testing.T) {
 	}
 	if ev != nil {
 		t.Errorf("evidence = %v, want nil when no namespaces in scope or defaults", ev)
+	}
+}
+
+func TestPodEvidence_pendingPullsContainerWaitingReason(t *testing.T) {
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "brokenpod", Namespace: "prod"},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodPending,
+			// Status.Reason intentionally empty — that's the real-world ImagePullBackOff shape.
+			ContainerStatuses: []corev1.ContainerStatus{{
+				Name:  "app",
+				State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ImagePullBackOff"}},
+			}},
+		},
+	}
+	ev, ok := podEvidence("prod", pod)
+	if !ok {
+		t.Fatal("podEvidence returned ok=false for Pending pod")
+	}
+	if got := ev.Data["reason"]; got != "ImagePullBackOff" {
+		t.Errorf("Data[reason] = %q, want ImagePullBackOff (from container waiting state)", got)
+	}
+	if !strings.Contains(ev.Summary, "ImagePullBackOff") {
+		t.Errorf("Summary = %q, want it to mention ImagePullBackOff", ev.Summary)
+	}
+}
+
+func TestPodEvidence_failedPodKeepsExistingReason(t *testing.T) {
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "evicted", Namespace: "prod"},
+		Status: corev1.PodStatus{
+			Phase:  corev1.PodFailed,
+			Reason: "Evicted",
+		},
+	}
+	ev, ok := podEvidence("prod", pod)
+	if !ok {
+		t.Fatal("podEvidence returned ok=false for Failed pod")
+	}
+	if got := ev.Data["reason"]; got != "Evicted" {
+		t.Errorf("Data[reason] = %q, want Evicted (pod-level Reason preserved)", got)
 	}
 }
 

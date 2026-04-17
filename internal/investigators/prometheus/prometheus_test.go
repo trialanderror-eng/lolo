@@ -80,6 +80,14 @@ func TestInvestigate_emitsSeriesEvidence(t *testing.T) {
 	if !highSeen || !lowSeen {
 		t.Errorf("expected both a high-confidence and low-confidence evidence; got %+v", ev)
 	}
+	for _, e := range ev {
+		if len(e.Links) != 1 || e.Links[0].Label != "graph" {
+			t.Errorf("evidence missing graph Link: %+v", e.Links)
+		}
+		if !strings.Contains(e.Links[0].URL, srv.URL+"/graph?g0.expr=") {
+			t.Errorf("Link URL = %q, want it to point at the test Prometheus graph", e.Links[0].URL)
+		}
+	}
 }
 
 func TestInvestigate_noBaseURLIsNoOp(t *testing.T) {

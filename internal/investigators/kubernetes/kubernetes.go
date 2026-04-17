@@ -148,21 +148,59 @@ func podEvidence(ns string, p corev1.Pod) (evidence.Evidence, bool) {
 		}
 	}
 	if p.Status.Phase == corev1.PodPending || p.Status.Phase == corev1.PodFailed {
+		reason := p.Status.Reason
+		if reason == "" {
+			// Pod-level Reason isn't set for many real failure modes
+			// (ImagePullBackOff, ErrImagePull, CreateContainerConfigError, etc).
+			// Fall back to container waiting/terminated reasons.
+			reason = containerStateReason(p)
+		}
 		return evidence.Evidence{
 			Source:     "kubernetes",
 			Kind:       "pod_unhealthy",
 			At:         time.Now().UTC(),
 			Confidence: 0.6,
-			Summary:    fmt.Sprintf("%s/%s phase=%s reason=%s", ns, p.Name, p.Status.Phase, p.Status.Reason),
+			Summary:    fmt.Sprintf("%s/%s phase=%s reason=%s", ns, p.Name, p.Status.Phase, defaultStr(reason, "unknown")),
 			Data: map[string]any{
 				"namespace": ns,
 				"pod":       p.Name,
 				"phase":     string(p.Status.Phase),
-				"reason":    p.Status.Reason,
+				"reason":    reason,
 			},
 		}, true
 	}
 	return evidence.Evidence{}, false
+}
+
+// containerStateReason joins distinct waiting/terminated reasons across the
+// pod's containers — that's where Kubernetes records ImagePullBackOff,
+// ErrImagePull, OOMKilled, etc. when the pod-level Reason is empty.
+func containerStateReason(p corev1.Pod) string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(r string) {
+		if r == "" || seen[r] {
+			return
+		}
+		seen[r] = true
+		out = append(out, r)
+	}
+	for _, cs := range p.Status.ContainerStatuses {
+		if cs.State.Waiting != nil {
+			add(cs.State.Waiting.Reason)
+		}
+		if cs.State.Terminated != nil {
+			add(cs.State.Terminated.Reason)
+		}
+	}
+	return strings.Join(out, ",")
+}
+
+func defaultStr(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
 }
 
 func eventTime(e corev1.Event) time.Time {

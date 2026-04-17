@@ -58,7 +58,7 @@ func (i *Investigator) Investigate(ctx context.Context, inc incident.Incident) (
 			log.Printf("prometheus: query %q: %v", q, err)
 			continue
 		}
-		out = append(out, evidenceFromSeries(q, series, inc)...)
+		out = append(out, evidenceFromSeries(i.baseURL, q, series, inc)...)
 	}
 	return out, nil
 }
@@ -186,7 +186,7 @@ func stepFor(start, end time.Time) string {
 	}
 }
 
-func evidenceFromSeries(query string, ss []series, inc incident.Incident) []evidence.Evidence {
+func evidenceFromSeries(baseURL, query string, ss []series, inc incident.Incident) []evidence.Evidence {
 	// Keep the top-N by peak value — noisy queries returning many series
 	// would otherwise drown the report.
 	sort.SliceStable(ss, func(i, j int) bool { return peak(ss[i]) > peak(ss[j]) })
@@ -219,6 +219,10 @@ func evidenceFromSeries(query string, ss []series, inc incident.Incident) []evid
 				"points": len(s.samples),
 				"window": inc.Window.String(),
 			},
+			Links: []evidence.Link{{
+				Label: "graph",
+				URL:   fmt.Sprintf("%s/graph?g0.expr=%s&g0.tab=0", baseURL, url.QueryEscape(query)),
+			}},
 		})
 	}
 	return out
