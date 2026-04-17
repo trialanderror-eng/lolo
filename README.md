@@ -68,6 +68,9 @@ Environment:
 | `LOLO_LOKI_TOKEN` | Optional bearer token for Loki auth (useful for Grafana Cloud / hosted Loki). |
 | `LOLO_PUBLIC_URL` | External URL lolo is reachable at (e.g. `https://lolo.internal`). Used to make `memory` investigator Links absolute so they resolve from Slack/Jira. Relative when unset — dashboard still works. |
 | `LOLO_STORAGE_PATH` | File path for the SQLite investigation store (e.g. `/data/lolo.db`). When unset, storage is an ephemeral in-memory ring buffer (investigations lost on restart). Required for the `memory` investigator to accumulate knowledge across restarts. |
+| `LOLO_LLM_URL` | OpenAI-compatible endpoint (e.g. `http://ollama:11434`). When set, lolo sends the top 3 hypotheses + their evidence to this endpoint for a natural-language narrative that replaces the deterministic `Reasoning` text. **Use a local endpoint only** — never a hosted API. Incident data must not leave the operator's environment. |
+| `LOLO_LLM_MODEL` | Model identifier (e.g. `llama3.1:8b`, `qwen2.5:7b`). Default `llama3.1:8b`. |
+| `LOLO_LLM_API_KEY` | Optional bearer auth for the LLM endpoint. Most local backends ignore it; include for hosted gateways if you've configured one despite the warning above. |
 
 Endpoints:
 

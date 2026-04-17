@@ -19,6 +19,7 @@ import (
 	"github.com/trialanderror-eng/lolo/internal/investigators/logs"
 	meminv "github.com/trialanderror-eng/lolo/internal/investigators/memory"
 	"github.com/trialanderror-eng/lolo/internal/investigators/prometheus"
+	"github.com/trialanderror-eng/lolo/internal/llm/openai"
 	"github.com/trialanderror-eng/lolo/internal/output/slack"
 	"github.com/trialanderror-eng/lolo/internal/output/stdout"
 	"github.com/trialanderror-eng/lolo/internal/server/dashboard"
@@ -53,9 +54,17 @@ func main() {
 		sinks = append(sinks, slack.New(url))
 	}
 
+	var ranker hypothesis.Ranker = hypothesis.CorrelatingRanker{TopN: 10}
+	if llmURL := os.Getenv("LOLO_LLM_URL"); llmURL != "" {
+		model := envOr("LOLO_LLM_MODEL", "llama3.1:8b")
+		client := openai.New(llmURL, model, os.Getenv("LOLO_LLM_API_KEY"))
+		ranker = hypothesis.LLMRanker{Inner: ranker, Client: client, TopN: 3}
+		log.Printf("llm: narrating top 3 hypotheses via %s (model=%s)", llmURL, model)
+	}
+
 	engine := &engine{
 		investigators: invs,
-		ranker:        hypothesis.CorrelatingRanker{TopN: 10},
+		ranker:        ranker,
 		sinks:         sinks,
 		storage:       store,
 	}
